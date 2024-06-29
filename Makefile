@@ -6,7 +6,7 @@ CXXFLAGS = -Wall -Wextra -g -lgmp -lm -Wunused-function # C++ derleme flag'leri
 TARGET = out   # Derlenecek programın adı
 
 SRCS_C = main.cpp   # C dosyaları
-SRCS_CPP = ./src/primefile.cpp ./src/primealgorithm.cpp   # C++ dosyaları
+SRCS_CPP = ./src/primefile.cpp ./src/primealgorithm.cpp ./src/paralize.cpp  # C++ dosyaları
 
 OBJS_C = $(SRCS_C:.c=.o)     # C objeleri
 OBJS_CPP = $(SRCS_CPP:.cpp=.o)  # C++ objeleri

@@ -3,11 +3,15 @@
 #include "primealgorithm.h"
 #include "primefile.h"
 
-/**
- * @brief KOnsol ekranında bulunacak olan işlem çubuğu.
- * 
- * @param progress 
- */
+#include <algorithm>
+#include <thread>
+#include <mutex>
+#include <cmath>
+
+// Mutex for thread-safe writing to saveVec
+std::mutex mtx;
+
+// Terminalde işlem çubuğu gösterimi
 void loadingBar(double progress) {
     int barWidth = 70;
     int pos = barWidth * progress;
@@ -26,42 +30,38 @@ void loadingBar(double progress) {
 /**
  * @brief Start ve Stop değerleri arasında bulunan asal sayıları tespit eder.
  * 
- * @param start 
- * @param stop 
- * @param plist 
- * @return std::vector<uint32_t> 
+ * @param start Başlangıç değeri
+ * @param stop Bitiş değeri
+ * @param plist Daha önce hesaplanmış asal sayılar listesi
+ * @return std::vector<uint32_t> Bulunan asal sayıların vektörü
  */
 std::vector<uint32_t> calculateBetween(uint32_t start, uint32_t stop, const std::vector<uint32_t>& plist) {
+    bool primeCheck = true;
+    uint32_t marginErr = 10;
     
-    bool     primeCheck = true;
-    uint32_t marginErr  =   10;
-    
+    // Asal sayı listesini kırp
     std::vector<uint32_t> primeList = *cropPrimeList(plist, static_cast<uint32_t>(sqrtf(stop) + marginErr));
     std::vector<uint32_t> saveVec;
 
-    uint32_t total   = (stop - start) / 2;
-    uint32_t partJob =        total / 100;
-    uint32_t dump    =                  1;
+    uint32_t total = (stop - start) / 2;
+    uint32_t partJob = total / 100;
 
-    //
-    // Girilen sayıların tek olup olmadığını kontrol et
-    //
-    if(start % 2 == 0){
-        std::clog << "Start number is not odd substracting 1" << std::endl;
-        start--;
+    // Başlangıç değerinin tek olup olmadığını kontrol et
+    if (start % 2 == 0) {
+        std::clog << "Start number is not odd, incrementing by 1" << std::endl;
+        start++;
     }
 
-    //
-    // Terminal Manipülasyonu
-    //
+    // İşlem çubuğu gösterimi
     std::cout << "Calculating numbers between " << start << " and " << stop << "\n";
 
     for (uint32_t i = start; i < stop; i += 2) {
-        // Loading bar'ı güncelle
-        if (i % partJob == 1) { 
+        // İşlem çubuğunu güncelle
+        if ((i - start) % partJob == 0) { 
             loadingBar(static_cast<double>(i - start) / (stop - start));
         }
 
+        primeCheck = true;
         for (uint32_t prime : primeList) {
             if (i % prime == 0) { 
                 primeCheck = false; 
@@ -72,9 +72,12 @@ std::vector<uint32_t> calculateBetween(uint32_t start, uint32_t stop, const std:
         if (primeCheck) { 
             saveVec.push_back(i);
         }
-        
-        primeCheck = true;
     }
+
+    // Vektördeki tekrar eden elemanları kaldır ve vektörü küçükten büyüğe sırala
+    std::sort(saveVec.begin(), saveVec.end());
+    auto last = std::unique(saveVec.begin(), saveVec.end());
+    saveVec.erase(last, saveVec.end());
 
     // İşlem tamamlandığında %100 olarak göster
     loadingBar(1.0);
@@ -84,24 +87,77 @@ std::vector<uint32_t> calculateBetween(uint32_t start, uint32_t stop, const std:
 }
 
 /**
- * @brief 
+ * @brief Start ve Stop değerleri arasında paralel olarak asal sayıları hesaplar.
  * 
- * @return std::vector<uint32_t> *
+ * @param start Başlangıç değeri
+ * @param stop Bitiş değeri
+ * @param plist Daha önce hesaplanmış asal sayılar listesi
+ * @param numThreads Kullanılacak thread sayısı
+ */
+std::vector<uint32_t> parallelPrimeCalculation(uint32_t start, uint32_t stop, const std::vector<uint32_t>& plist, uint32_t numThreads) {
+    uint32_t range = (stop - start) / numThreads;
+    std::vector<std::thread> threads;
+    std::vector<std::vector<uint32_t>> results(numThreads);
+
+    for (uint32_t i = 0; i < numThreads; ++i) {
+        uint32_t rangeStart = start + i * range;
+        uint32_t rangeStop = (i == numThreads - 1) ? stop : rangeStart + range;
+
+        // Her thread'in başlangıç değerinin tek olup olmadığını kontrol et
+        if (rangeStart % 2 == 0) {
+            std::clog << "Thread " << i << ": Start number is not odd, incrementing by 1" << std::endl;
+            rangeStart++;
+        }
+
+        // Her thread'i başlat ve hesaplama yap
+        threads.emplace_back([&, rangeStart, rangeStop, i] {
+            results[i] = calculateBetween(rangeStart, rangeStop, plist);
+        });
+    }
+
+    // Thread'lerin tamamlanmasını bekle
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    // Sonuçları birleştir
+    std::vector<uint32_t> finalResults;
+    for (const auto& result : results) {
+        finalResults.insert(finalResults.end(), result.begin(), result.end());
+    }
+
+    // Tekrar eden elemanları kaldır ve sonuçları sırala
+    std::sort(finalResults.begin(), finalResults.end());
+    auto last = std::unique(finalResults.begin(), finalResults.end());
+    finalResults.erase(last, finalResults.end());
+
+    // Sonuçları yazdır veya kaydet
+    std::cout << " !- Paralize calculation end -! " << std::endl;
+
+    std::cout << std::endl;
+
+    return finalResults;
+}
+
+/**
+ * @brief Asal sayı listesini belirtilen maksimum değere kadar kırpar.
+ * 
+ * @param plist Asal sayı listesi
+ * @param maxValue Maksimum değer
+ * @return std::vector<uint32_t>* Kırpılmış asal sayı listesi
  */
 std::vector<uint32_t>* cropPrimeList(const std::vector<uint32_t>& plist, uint32_t maxValue) {
     std::vector<uint32_t>* retVec = new std::vector<uint32_t>;
 
-    if(plist.back() < maxValue){
-        std::cerr << "The Control list is not enought for calculation" << std::endl;
-        return NULL;
+    if (plist.back() < maxValue) {
+        std::cerr << "The control list is not enough for calculation" << std::endl;
+        return nullptr;
     }
 
     for (uint32_t prime : plist) {
-        
-        if (prime > maxValue) { 
-            break; 
+        if (prime > maxValue) {
+            break;
         }
-
         retVec->push_back(prime);
     }
 
