@@ -4,6 +4,9 @@ This project is a continuation of the PrimeSlicer project that I previously code
 
 ## PICS
 
-![Screenshot](https://github.com/n0connect/CPPRIME/assets/126422643/2b692dc8-7767-4a7a-a43c-b7c98e93bc72)
+![Ekran Görüntüsü - 2024-06-30 13-39-16](https://github.com/n0connect/CPPRIME/assets/126422643/29c856c2-e727-4dea-bbb4-03b2f9de152d)
 
-**Completed the prime numbers between 79999987 and 1410065307 in 2 minutes using 8 Threads. Total file size (263.2 MB).**
+**Completed the prime numbers between 79999987 and 1410065307 in 96 second using 12 Threads. Total file size (263.2 MB).**
+
+## OPT
+**Progressing...**
