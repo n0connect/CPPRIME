@@ -1,28 +1,29 @@
-CC = gcc       # C derleyici
-CXX = g++      # C++ derleyici
-CFLAGS = -Wall -Wextra -g -lgmp -lm -Wunused-function  # C derleme flag'leri
-CXXFLAGS = -Wall -Wextra -g -lgmp -lm -Wunused-function # C++ derleme flag'leri
+# C++ derleyici
+CXX = g++
 
-TARGET = out   # Derlenecek programın adı
+# C++ derleme flag'leri
+CXXFLAGS = -Wall -Wextra -O3 -march=native -flto -fopenmp -pthread
 
-SRCS_C = main.cpp   # C dosyaları
-SRCS_CPP = ./src/primefile.cpp ./src/primealgorithm.cpp ./src/paralize.cpp  # C++ dosyaları
+# GMP ve math kütüphaneleri
+LIBS = -lgmp -lm
 
-OBJS_C = $(SRCS_C:.c=.o)     # C objeleri
-OBJS_CPP = $(SRCS_CPP:.cpp=.o)  # C++ objeleri
+# Derlenecek programın adı
+TARGET = out
+
+# C++ kaynak dosyaları
+SRCS_CPP = main.cpp ./src/primefile.cpp ./src/primealgorithm.cpp ./src/paralize.cpp
+
+# C++ objeleri
+OBJS_CPP = $(SRCS_CPP:.cpp=.o)
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS_C) $(OBJS_CPP)
-	$(CXX) $(CXXFLAGS) $(OBJS_C) $(OBJS_CPP) -o $(TARGET)
-
-# C dosyalarını derleme
-%.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+$(TARGET): $(OBJS_CPP)
+	$(CXX) $(CXXFLAGS) $(OBJS_CPP) -o $(TARGET) $(LIBS)
 
 # C++ dosyalarını derleme
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJS_C) $(OBJS_CPP) $(TARGET)
+	rm -f $(OBJS_CPP) $(TARGET)

@@ -57,9 +57,9 @@ std::vector<uint32_t> calculateBetween(uint32_t start, uint32_t stop, const std:
 
     for (uint32_t i = start; i < stop; i += 2) {
         // İşlem çubuğunu güncelle
-        if ((i - start) % partJob == 0) { 
-            loadingBar(static_cast<double>(i - start) / (stop - start));
-        }
+        //if ((i - start) % partJob == 1) { 
+        //    loadingBar(static_cast<double>(i - start) / (stop - start));
+        //}
 
         primeCheck = true;
         for (uint32_t prime : primeList) {
@@ -133,7 +133,6 @@ std::vector<uint32_t> parallelPrimeCalculation(uint32_t start, uint32_t stop, co
 
     // Sonuçları yazdır veya kaydet
     std::cout << " !- Paralize calculation end -! " << std::endl;
-
     std::cout << std::endl;
 
     return finalResults;
