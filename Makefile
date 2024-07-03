@@ -5,7 +5,7 @@ CXX = g++
 CXXFLAGS = -Wall -Wextra -O3 -march=native -flto -fopenmp -pthread
 
 # GMP ve math kütüphaneleri
-LIBS = -lgmp -lm
+LIBS = -lgmpxx -lgmp
 
 # Derlenecek programın adı
 TARGET = out

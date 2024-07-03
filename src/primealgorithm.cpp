@@ -1,5 +1,3 @@
-/* primealgorithm.cpp */
-
 #include "primealgorithm.h"
 #include "primefile.h"
 
@@ -33,40 +31,51 @@ void loadingBar(double progress) {
  * @param start Başlangıç değeri
  * @param stop Bitiş değeri
  * @param plist Daha önce hesaplanmış asal sayılar listesi
- * @return std::vector<uint32_t> Bulunan asal sayıların vektörü
+ * @return std::vector<mpz_class> Bulunan asal sayıların vektörü
  */
-std::vector<uint32_t> calculateBetween(uint32_t start, uint32_t stop, const std::vector<uint32_t>& plist) {
+std::vector<mpz_class> calculateBetween(mpz_class start, mpz_class stop, const std::vector<mpz_class>& plist) {
     bool primeCheck = true;
-    uint32_t marginErr = 10;
+    //uint32_t marginErr = 10;
     
-    // Asal sayı listesini kırp
-    std::vector<uint32_t> primeList = *cropPrimeList(plist, static_cast<uint32_t>(sqrtf(stop) + marginErr));
-    std::vector<uint32_t> saveVec;
+    mpz_class sqrtStop;
+    mpz_sqrt(sqrtStop.get_mpz_t(), stop.get_mpz_t());
 
-    uint32_t total = (stop - start) / 2;
-    uint32_t partJob = total / 100;
+    // Asal sayı listesini kırp [Disabled]
+    //std::vector<mpz_class> primeList = *cropPrimeList(plist, sqrtStop + marginErr);
+    std::vector<mpz_class> saveVec;
 
     // Başlangıç değerinin tek olup olmadığını kontrol et
-    if (start % 2 == 0) {
+    if (mpz_even_p(start.get_mpz_t())) {
+        //mtx.lock();
         std::clog << "Start number is not odd, incrementing by 1" << std::endl;
         start++;
+        //mtx.unlock();
     }
 
     // İşlem çubuğu gösterimi
+    //mtx.lock();
     std::cout << "Calculating numbers between " << start << " and " << stop << "\n";
+    //mtx.unlock();
 
-    for (uint32_t i = start; i < stop; i += 2) {
-        // İşlem çubuğunu güncelle
-        //if ((i - start) % partJob == 1) { 
-        //    loadingBar(static_cast<double>(i - start) / (stop - start));
-        //}
-
+    for (mpz_class i = start; i < stop; i += 2) {
+        
+        mpz_class sqrtNum;
+        mpz_sqrt(sqrtNum.get_mpz_t(), i.get_mpz_t());
         primeCheck = true;
-        for (uint32_t prime : primeList) {
-            if (i % prime == 0) { 
+
+        for (const auto& prime : plist) {
+            
+            if (mpz_divisible_p(i.get_mpz_t(), prime.get_mpz_t()))
+            { 
                 primeCheck = false; 
-                break; 
+                break;
+            
             }
+            //else if (sqrtNum < prime)
+            //
+            //{
+            //    break;
+            //}
         }
 
         if (primeCheck) { 
@@ -75,13 +84,33 @@ std::vector<uint32_t> calculateBetween(uint32_t start, uint32_t stop, const std:
     }
 
     // Vektördeki tekrar eden elemanları kaldır ve vektörü küçükten büyüğe sırala
-    std::sort(saveVec.begin(), saveVec.end());
-    auto last = std::unique(saveVec.begin(), saveVec.end());
-    saveVec.erase(last, saveVec.end());
+    //std::sort(saveVec.begin(), saveVec.end());
+    //auto last = std::unique(saveVec.begin(), saveVec.end());
+    //saveVec.erase(last, saveVec.end());
+
+    return saveVec;
+}
+
+/**
+ * @brief Aralık listesi içerisindeki start ve stop değerlerine göre asal sayıları tespit eder.
+ * 
+ * @param ranges Aralık listesindeki her bir ikili eleman (start, stop) 
+ * @param plist Daha önce hesaplanmış asal sayılar listesi
+ * @return std::vector<mpz_class> Bulunan asal sayıların vektörü
+ */
+std::vector<mpz_class> calculateForRanges(const std::vector<std::pair<mpz_class, mpz_class>>& ranges, const std::vector<mpz_class>& plist) {
+    std::vector<mpz_class> saveVec;
+    
+    for (const auto& range : ranges) {
+        std::vector<mpz_class> partialResults = calculateBetween(range.first, range.second, plist);
+        saveVec.insert(saveVec.end(), partialResults.begin(), partialResults.end());
+    }
 
     // İşlem tamamlandığında %100 olarak göster
+    mtx.lock();
     loadingBar(1.0);
     std::cout << std::endl;
+    mtx.unlock();
 
     return saveVec;
 }
@@ -93,45 +122,74 @@ std::vector<uint32_t> calculateBetween(uint32_t start, uint32_t stop, const std:
  * @param stop Bitiş değeri
  * @param plist Daha önce hesaplanmış asal sayılar listesi
  * @param numThreads Kullanılacak thread sayısı
+ * @param chunkCount Her bir thread için işlenecek aralık sayısı
+ * @param chunkRange Her bir işlenecek aralığın büyüklüğü
+ * @return std::vector<mpz_class> Bulunan asal sayıların vektörü
  */
-std::vector<uint32_t> parallelPrimeCalculation(uint32_t start, uint32_t stop, const std::vector<uint32_t>& plist, uint32_t numThreads) {
-    uint32_t range = (stop - start) / numThreads;
+std::vector<mpz_class> parallelPrimeCalculation(mpz_class start, mpz_class stop, const std::vector<mpz_class>& plist, uint32_t numThreads, uint32_t chunkCount, mpz_class chunkRange) {
     std::vector<std::thread> threads;
-    std::vector<std::vector<uint32_t>> results(numThreads);
+    std::vector<std::vector<mpz_class>> results(numThreads);
+
+    // Her bir thread için aralıkları hazırlayın
+    std::vector<std::vector<std::pair<mpz_class, mpz_class>>> threadRanges(numThreads);
 
     for (uint32_t i = 0; i < numThreads; ++i) {
-        uint32_t rangeStart = start + i * range;
-        uint32_t rangeStop = (i == numThreads - 1) ? stop : rangeStart + range;
+        for (uint32_t j = 0; j < chunkCount; ++j) {
+            mpz_class rangeStart = start + (i + j * numThreads) * chunkRange;
 
-        // Her thread'in başlangıç değerinin tek olup olmadığını kontrol et
-        if (rangeStart % 2 == 0) {
-            std::clog << "Thread " << i << ": Start number is not odd, incrementing by 1" << std::endl;
-            rangeStart++;
+            if (mpz_even_p(rangeStart.get_mpz_t())) {
+                rangeStart++;
+            }
+
+            mpz_class rangeStop = rangeStart + chunkRange;
+            if (rangeStop > stop) {
+                rangeStop = stop;
+            }
+
+            threadRanges[i].emplace_back(rangeStart, rangeStop);
+            
+            /**************** NOT GOOD *****************/
+            // BU KISMI MUTLAKA OPTIMIZE ETMELIYIM.
+            // İdarelik bir çözüm buldum.
+            if(numThreads-1 <= i && chunkCount-1 <= j){
+                threadRanges[i].emplace_back(rangeStop, stop);
+            }
         }
+    }
 
-        // Her thread'i başlat ve hesaplama yap
-        threads.emplace_back([&, rangeStart, rangeStop, i] {
-            results[i] = calculateBetween(rangeStart, rangeStop, plist);
+    //for(const auto &num : threadRanges){
+    //    
+    //    for(const auto &numx : num){
+    //        std::cout << "("<< numx.first << ", " << numx.second << ")" << ", ";
+    //    } std::cout << "\n\n";
+    //}
+
+    //exit(1);
+
+    //for(uint32_t i = 0; i < threadRanges.size(); ++i){
+    //   std::cout << threadRanges[i].size() << ", ";
+    //   exit(1);
+    //}
+
+    for (uint32_t i = 0; i < numThreads; ++i) {
+        threads.emplace_back([&, i] {
+            results[i] = calculateForRanges(threadRanges[i], plist);
         });
     }
 
-    // Thread'lerin tamamlanmasını bekle
     for (auto& thread : threads) {
         thread.join();
     }
 
-    // Sonuçları birleştir
-    std::vector<uint32_t> finalResults;
+    std::vector<mpz_class> finalResults;
     for (const auto& result : results) {
         finalResults.insert(finalResults.end(), result.begin(), result.end());
     }
 
-    // Tekrar eden elemanları kaldır ve sonuçları sırala
     std::sort(finalResults.begin(), finalResults.end());
     auto last = std::unique(finalResults.begin(), finalResults.end());
     finalResults.erase(last, finalResults.end());
 
-    // Sonuçları yazdır veya kaydet
     std::cout << " !- Paralize calculation end -! " << std::endl;
     std::cout << std::endl;
 
@@ -143,17 +201,17 @@ std::vector<uint32_t> parallelPrimeCalculation(uint32_t start, uint32_t stop, co
  * 
  * @param plist Asal sayı listesi
  * @param maxValue Maksimum değer
- * @return std::vector<uint32_t>* Kırpılmış asal sayı listesi
+ * @return std::vector<mpz_class>* Kırpılmış asal sayı listesi
  */
-std::vector<uint32_t>* cropPrimeList(const std::vector<uint32_t>& plist, uint32_t maxValue) {
-    std::vector<uint32_t>* retVec = new std::vector<uint32_t>;
+std::vector<mpz_class>* cropPrimeList(const std::vector<mpz_class>& plist, mpz_class maxValue) {
+    std::vector<mpz_class>* retVec = new std::vector<mpz_class>;
 
     if (plist.back() < maxValue) {
         std::cerr << "The control list is not enough for calculation" << std::endl;
         return nullptr;
     }
 
-    for (uint32_t prime : plist) {
+    for (const auto& prime : plist) {
         if (prime > maxValue) {
             break;
         }

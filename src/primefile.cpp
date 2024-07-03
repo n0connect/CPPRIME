@@ -5,6 +5,7 @@
 #include <iostream>
 #include <fstream>
 
+// Manuel Header
 #include "primefile.h"
 
 /**
@@ -19,7 +20,7 @@ PrimeFile::PrimeFile() : filename(""), count(0) {}
  * @param fname 
  * @param nums 
  */
-PrimeFile::PrimeFile(const std::string& fname, std::vector<uint32_t> nums) : filename(fname), numbers(nums), count(nums.size()) {
+PrimeFile::PrimeFile(const std::string& fname, std::vector<mpz_class> nums) : filename(fname), numbers(nums), count(nums.size()) {
     // Dosyayı okumak için
     std::ifstream file(filename, std::ios::binary);
 
@@ -57,8 +58,12 @@ bool PrimeFile::writeNumbers() {
         return false;
     }
 
-    for (uint32_t num : numbers) {
-        file.write(reinterpret_cast<const char*>(&num), sizeof(uint32_t));
+    /***************************************** */
+    for (const auto& num : numbers) {
+        std::string num_str = num.get_str();
+        uint32_t size = num_str.size();
+        file.write(reinterpret_cast<const char*>(&size), sizeof(uint32_t));
+        file.write(num_str.c_str(), size);
     }
 
     file.close();
@@ -81,9 +86,11 @@ bool PrimeFile::readNumbers() {
 
     numbers.clear(); // Mevcut sayıları temizle
 
-    uint32_t num;
-    while (file.read(reinterpret_cast<char*>(&num), sizeof(uint32_t))) {
-        numbers.push_back(num);
+    uint32_t size;
+    while (file.read(reinterpret_cast<char*>(&size), sizeof(uint32_t))) {
+        std::vector<char> buffer(size);
+        file.read(buffer.data(), size);
+        numbers.push_back(mpz_class(std::string(buffer.data(), size)));
     }
 
     count = numbers.size(); // Sayı adedini güncelle
@@ -101,7 +108,7 @@ void PrimeFile::printNumbers() const {
 
     std::cout << "\033[1;32m[ ";
 
-    for (uint32_t num : numbers) {
+    for (const auto& num : numbers) {
         std::cout << num << ", ";
     }
 
@@ -117,7 +124,7 @@ void PrimeFile::printNumbers() const {
  * @return true 
  * @return false 
  */
-bool PrimeFile::addNumber(uint32_t num) {
+bool PrimeFile::addNumber(const mpz_class& num) {
     numbers.push_back(num);
     count++;
     return true; // Basitlik için başarılı kabul ediyoruz
@@ -126,23 +133,23 @@ bool PrimeFile::addNumber(uint32_t num) {
 /**
  * @brief getNumbers dosyanın bağlı olduğu vektörü döndürür.
  * 
- * @return const std::vector<uint32_t>& 
+ * @return const std::vector<mpz_class>& 
  */
-const std::vector<uint32_t>& PrimeFile::getNumbers() const {
+const std::vector<mpz_class>& PrimeFile::getNumbers() const {
     return numbers;
 }
 
 /**
  * @brief Dosyanın içerdiği sayı adedini gösterir.
  * 
- * @return uint32_t 
+ * @return mpz_class 
  */
-uint32_t PrimeFile::getCount() const {
+mpz_class PrimeFile::getCount() const {
     return count;
 }
 
 /**
- * @brief iki ader .prime dosyasını birleştirerek ted dosya haline getirir.
+ * @brief iki ader .prime dosyasını birleştirerek tek dosya haline getirir.
  * 
  * @param f1 
  * @param f2 
@@ -151,10 +158,10 @@ uint32_t PrimeFile::getCount() const {
  * @return false 
  */
 bool merge2File(PrimeFile f1, PrimeFile f2, const std::string& outputFilename) {
-    const std::vector<uint32_t>& numbers1 = f1.getNumbers();
-    const std::vector<uint32_t>& numbers2 = f2.getNumbers();
+    const std::vector<mpz_class>& numbers1 = f1.getNumbers();
+    const std::vector<mpz_class>& numbers2 = f2.getNumbers();
 
-    std::vector<uint32_t> mergedNumbers;
+    std::vector<mpz_class> mergedNumbers;
     mergedNumbers.reserve(numbers1.size() + numbers2.size());
 
     // İki listeyi birleştir
